@@ -18,7 +18,7 @@ DESCRIPTION = 'A tools to simulate spatial transcriptomics data.'
 EMAIL = '599568651@qq.com'
 URL="https://github.com/YANG-ERA/Spider/tree/main"
 AUTHOR ='Jiyuan Yang'
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 
 setup(
     name=NAME,
