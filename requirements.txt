@@ -8,7 +8,5 @@ scikit_learn
 scipy
 seaborn
 squidpy
-random
-math
-pickle
+
 

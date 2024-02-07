@@ -2,12 +2,9 @@ anndata
 matplotlib
 numba
 numpy
-random
 pandas
 scanpy
 scikit_learn
-math
-pickle
 scipy
 seaborn
 squidpy
