@@ -18,7 +18,7 @@ DESCRIPTION = 'A tools to simulate spatial transcriptomics data.'
 EMAIL = '599568651@qq.com'
 URL="https://github.com/YANG-ERA/Spider/tree/main"
 AUTHOR ='Jiyuan Yang'
-VERSION = '0.1.4'
+VERSION = '0.2.0'
 
 setup(
     name=NAME,
@@ -33,5 +33,5 @@ setup(
     packages=find_packages(),
     install_requires=["anndata", "matplotlib", "numba", "numpy",
                   "pandas", "scanpy", "scikit_learn",
-                  "scipy", "seaborn", "squidpy"]
+                "scipy", "seaborn", "squidpy", "torch"]
 )

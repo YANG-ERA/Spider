@@ -6,6 +6,7 @@ from .opt import valid_neighbourhood_frequency
 from os.path import join
 from .run_scsim import *
 from .sim_expr import *
+from .random_based_utils import *
 
 warnings.filterwarnings("ignore")
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -170,6 +171,7 @@ def get_onehot_ct(init_assign = None):
     integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
     onehot_ct = onehot_encoder.fit_transform(integer_encoded)
     return onehot_ct.astype(np.float32)
+
 def get_sim_spot_level_expr( spot_num = None, spot_row = None, spot_col = None,
                             Num_sample = None, spot_diameter = None, image_width = None,
                             image_height = None,celltype_assignment = None,coord_type = None,
@@ -291,7 +293,7 @@ def get_sim_spot_level_expr( spot_num = None, spot_row = None, spot_col = None,
 
         spot_pixel_row = (lra.reshape(-1)+0.5)*spot_diameter
         spot_pixel_col = (lrb.reshape(-1)+0.5)*spot_diameter
-        spot_loc =  np.vstack((spot_pixel_row, spot_pixel_col)).T
+        spot_loc = np.vstack((spot_pixel_row, spot_pixel_col)).T
 
 
         return spot_expr, spot_loc, spot_cell_idx_matrix
@@ -421,33 +423,36 @@ def sim_naive_cell(use_real_adata=None,
         simulatedat.uns['W'] = W[:len(use_real_adata),:]
         simulatedat.uns['celltype_name'] = np.unique(use_real_adata.obs[ctkey])
         simulatedat.var = use_real_adata.var
-        if not os.path.exists(file_path+'newsimu/'):
-            os.mkdir(file_path+'newsimu/')
-        simulatedat.write(file_path+'newsimu/'+method+'simu_cell_level'+'.h5ad')
+        # if not os.path.exists(file_path+'newsimu/'):
+        #     os.mkdir(file_path+'newsimu/')
+        simulatedat.write(file_path+method+'_simu_cell_level'+'.h5ad')
 
     return simulatedat
 
 def sim_naive_spot(use_real_adata=None,level='cell',spot_diameter=500,
                    ctkey=None,method=None,file_path=None,seed = 123):
+    global sim_spot_adata
     sim_adata = sim_naive_cell(use_real_adata,ctkey,method,file_path,seed)
-    adata = sim_adata.copy()
-    if level!='cell':
-        ## 平移坐标xy
-        temp1 = np.min(simu_adata.obsm["spatial"][:,0])
-        temp2 = np.min(simu_adata.obsm["spatial"][:,1])
-        simu_adata.obsm["spatial"][:,0] = simu_adata.obsm["spatial"][:,0]- temp1
-        simu_adata.obsm["spatial"][:,1] = simu_adata.obsm["spatial"][:,1]- temp2
+
+    if level == "cell":
+        return sim_adata
+    elif level == 'spot':
+        ## transform coordinate
+        temp1 = np.min(sim_adata.obsm["spatial"][:,0])
+        temp2 = np.min(sim_adata.obsm["spatial"][:,1])
+        sim_adata.obsm["spatial"][:,0] = sim_adata.obsm["spatial"][:,0]- temp1
+        sim_adata.obsm["spatial"][:,1] = sim_adata.obsm["spatial"][:,1]- temp2
         spot_expr, spot_loc, spot_cell_idx_matrix,spot_ct_count  = get_sim_spot_level_expr(spot_num=None,
                     spot_row=None,
                     spot_col=None,
-                    Num_sample=simu_adata.shape[0],
+                    Num_sample=sim_adata.shape[0],
                     spot_diameter=spot_diameter,
-                    image_width=np.max(simu_adata.obsm["spatial"][:,0]),
-                    image_height=np.max(simu_adata.obsm["spatial"][:,1]),
-                    celltype_assignment=simu_adata.obs.label,
+                    image_width=np.max(sim_adata.obsm["spatial"][:,0]),
+                    image_height=np.max(sim_adata.obsm["spatial"][:,1]),
+                    celltype_assignment=sim_adata.obs.label,
                     coord_type="generic",
-                    cell_spatial=simu_adata.obsm["spatial"],
-                    sim_cell_expr=simu_adata,
+                    cell_spatial=sim_adata.obsm["spatial"],
+                    sim_cell_expr=sim_adata,
                     gap=0,
                     spot_generate_type="square",
                     cell_coord_type="generic",
@@ -457,14 +462,16 @@ def sim_naive_spot(use_real_adata=None,level='cell',spot_diameter=500,
         ## adjust spot_loc
         spot_loc[:,0] = spot_loc[:,0] + temp1
         spot_loc[:,1] = spot_loc[:,1] + temp2
-        adata = ad.AnnData(spot_expr)
-        adata.obsm["spatial"] = spot_loc
-        adata.var = simu_adata.var
-        adata.obs.index =  ['spot'+str(j) for j in range(spot_expr.shape[0])]
-        adata = adata[~mask]
-        adata.uns["W"] = spot_ct_count[~mask]
-        adata.write_h5ad(file_path+'newsimu/'+ method +"simu_spot_level" + ".h5ad")
-    return adata
+        sim_spot_adata = ad.AnnData(spot_expr)
+        sim_spot_adata.obsm["spatial"] = spot_loc
+        sim_spot_adata.var = sim_adata.var
+        sim_spot_adata.obs.index =  ['spot'+str(j) for j in range(spot_expr.shape[0])]
+        sim_spot_adata = sim_spot_adata[~mask]
+        sim_spot_adata.uns["W"] = spot_ct_count[~mask]
+        sim_spot_adata.write_h5ad(file_path + method +"_simu_spot_level" + ".h5ad")
+        return sim_spot_adata
+    else:
+        raise ValueError("The parameter level must be either 'cell' or 'spot'")
 
 #generate gene expression using splatter
 from .scsim import scsim

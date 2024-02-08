@@ -1,3 +1,9 @@
+"""
+This script is modified code from 'Identifying gene expression programs of cell-type identity and cellular activity with single-cell RNA-Seq'
+from this repository https://github.com/dylkot/scsim
+Modified version allows the simulator take a pre-defined cell group assignment.
+"""
+
 import pandas as pd
 import numpy as np
 import sys
@@ -8,7 +14,7 @@ class scsim:
                 expoutprob=.05, expoutloc=4, expoutscale=0.5, ngroups=1,
                 diffexpprob=.1, diffexpdownprob=.5,
                 diffexploc=.1, diffexpscale=.4, bcv_dispersion=.1,
-                bcv_dof=60, ndoublets=0, groupprob=None,
+                bcv_dof=60, ndoublets=0, groupprob=None,groupid = None,
                 nproggenes=None, progdownprob=None, progdeloc=None,
                 progdescale=None, proggoups=None, progcellfrac=None,
                 minprogusage=.2, maxprogusage=.8):
@@ -24,6 +30,10 @@ class scsim:
         self.expoutloc = expoutloc
         self.expoutscale = expoutscale
         self.ngroups = ngroups
+        if groupid is not None:
+            assert len(groupid) == ncells
+            self.groups = np.unique(groupid)
+        self.groupid = groupid
         self.diffexpprob = diffexpprob
         self.diffexpdownprob = diffexpdownprob
         self.diffexploc = diffexploc
@@ -195,7 +205,10 @@ class scsim:
 
     def get_cell_params(self):
         '''Sample cell group identities and library sizes'''
-        groupid = self.simulate_groups()
+        if self.groupid is None:
+            groupid = self.simulate_groups()
+        else:
+            groupid = self.groupid
         libsize = np.random.lognormal(mean=self.libloc, sigma=self.libscale,
                                       size=self.init_ncells)
         self.cellnames = ['Cell%d' % i for i in range(1, self.init_ncells+1)]

@@ -8,5 +8,7 @@ scikit_learn
 scipy
 seaborn
 squidpy
+torch
+
 
 
