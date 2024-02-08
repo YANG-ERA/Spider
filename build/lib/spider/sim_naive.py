@@ -324,6 +324,7 @@ def get_sim_spot_level_expr( spot_num = None, spot_row = None, spot_col = None,
 def sim_naive_cell(use_real_adata=None,
               ctkey=None,method=None,
               file_path=None,seed = 123):
+    global simulatedat
     np.random.seed(seed)
     out_dir = file_path+'newsimu/'
     row_col_size = round(np.sqrt(len(use_real_adata)))+1
