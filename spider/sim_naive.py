@@ -1,183 +1,23 @@
 import warnings
 import sys
 import os
-from .joint_simulator import Simulator, get_gene_prior, get_nf_prior
-from .opt import valid_neighbourhood_frequency
+#from .joint_simulator import Simulator, get_gene_prior, get_nf_prior
+#from .opt import valid_neighbourhood_frequency
 from os.path import join
-from .run_scsim import *
+import time
 from .sim_expr import *
 from .random_based_utils import *
 
 warnings.filterwarnings("ignore")
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-#run fict func
-def plot_freq(neighbour,axes,color,cell_tag):
-    sample_n = neighbour.shape[1]
-    neighbour = neighbour/np.sum(neighbour,axis = 1,keepdims = True)
-    std = np.std(neighbour, axis = 0)/np.sqrt(sample_n)
-    mean = np.mean(neighbour, axis = 0)
-    x = np.arange(sample_n)
-    yerror = np.asarray([-std,std])
-
-    patches = axes.boxplot(neighbour,
-                        vert=True,  # vertical box alignment
-                        patch_artist=True,
-                        notch=True,
-                        usermedians = mean) # fill with color
-    for patch in patches['boxes']:
-        patch.set_facecolor(color)
-        patch.set_color(color)
-        patch.set_alpha(0.5)
-    for patch in patches['fliers']:
-        patch.set_markeredgecolor(color)
-        patch.set_color(color)
-    for patch in patches['whiskers']:
-        patch.set_color(color)
-    for patch in patches['caps']:
-        patch.set_color(color)
-    axes.errorbar(x+1,mean,color = color,label = cell_tag)
-    return mean,yerror
-
-def simulation(sim_folder,  #path
-               sample_n = 2500,
-               n_g = 1000,
-               n_c = 3,
-               density = 20,
-               threshold_distance = 1,
-               using_splatter = False,
-               method = 4,
-               use_refrence_coordinate = False,
-               coor = None,
-               cell_types = None,
-               gene_mean = None,
-               gene_std = None,
-               neighbour_freq_prior = None,
-               tags = None,
-               type_count = None,
-               random_seed = None
-                        ):
-    if not os.path.isdir(sim_folder):
-        os.mkdir(sim_folder)
-    methods = ['real_tran','real_tran1','stripe','real']
-    o_f = join(sim_folder,"%s"%(methods[method]))
-    if not os.path.isdir(o_f):
-        os.mkdir(o_f)
-    if not os.path.isdir(join(o_f,"figures")):
-        os.mkdir(join(o_f,"figures"))
-    if (method == 3) | use_refrence_coordinate:
-        if n_c == 3:
-            type_gather = ['Inhibitory','Excitatory','Ependymal']
-        else:
-            type_gather = None
-    print("######## Begin simulation with %s configuration ########"%(methods[method]))
-    #changed
-    def real_tran(n_c):
-        target_freq = np.ones((n_c,n_c))
-        for i in np.arange(n_c):
-            target_freq[i,i] = 4*(n_c-1)
-        #新加,改成real
-        target_freq = neighbour_freq_prior
-        target_freq/np.sum(target_freq,axis=1,keepdims=True)
-        return valid_neighbourhood_frequency(target_freq)[0]
-
-    def real_tran1(n_c):
-        target_freq = neighbour_freq_prior
-        return target_freq
-
-    def stripe_freq(n_c):
-        target_freq = np.ones((n_c,n_c))
-        for i in np.arange(n_c):
-            target_freq[i,i] = 3*(n_c-1)
-            if i>0:
-                target_freq[i-1,i] = 3*(n_c-1)
-        target_freq/np.sum(target_freq,axis=1,keepdims=True)
-        return valid_neighbourhood_frequency(target_freq)[0]
-    def real_freq(n_c):
-        assert len(neighbour_freq_prior) == n_c
-        target_freq = np.asarray(neighbour_freq_prior)
-        target_freq/np.sum(target_freq,axis=1,keepdims=True)
-        return valid_neighbourhood_frequency(target_freq)[0]
-
-    freq_map = {0:real_tran,1:real_tran1,2:stripe_freq,3:real_freq} #changed
-    target_freq = freq_map[method](n_c)
-    #检测target_freq中是否有小于0的项
-    target_freq[np.where(target_freq<0)] = 1e-6
-    target_freq[np.where(target_freq.sum(axis = 1)>1)]/target_freq[np.where(target_freq.sum(axis = 1)>1)].sum()
-
-    sim = Simulator(sample_n,n_g,n_c,density,seed = random_seed)
-    sim.gen_parameters(gene_mean_prior = None)
-    if use_refrence_coordinate:
-        reference_coordinate = coor
-    else:
-        reference_coordinate = None
-    cell_idxs = sim.gen_coordinate(density = density,
-                                   ref_coor = reference_coordinate)
-    cell_types = cell_types[cell_idxs]
-    ### Assign cell types by Gibbs sampling and load
-    if method == 3:
-        print("Assign cell types using refernece.")
-        sim.assign_cell_type(target_neighbourhood_frequency = target_freq,
-                             method = "Direct-assignment",
-                             ref_assignment = cell_types.astype(int))
-    else:
-        print("Assign cell type using Gibbs sampling.")
-        sim.assign_cell_type(target_neighbourhood_frequency=target_freq,
-                             method = "Gibbs-sampling",
-                             max_iter = 500,
-                             use_exist_assignment = False)
-        print("Refine cell type using Metropolisâ€“Hastings algorithm.")
-        sim.assign_cell_type(target_neighbourhood_frequency=target_freq,
-                             method = "Metropolis-swap",
-                             max_iter = 30000,
-                             use_exist_assignment = True,
-                             annealing = True)  #changed
-    fig,axs = plt.subplots()
-    axs.scatter(sim.coor[:,0],sim.coor[:,1], c = sim.cell_type_assignment,s = 20)
-    axs.set_title("Cell type assignment after assign_neighbour")
-    axs.set_xlabel("X")
-    axs.set_ylabel("Y")
-    fig.savefig(join(o_f,"figures/Cell_location.png"))
-
-    sim._get_neighbourhood_frequency()
-
-    if using_splatter:
-        print("Generate gene expression using Splatter.")
-        sim_gene_expression,sim_cell_type,sim_cell_neighbour = sim.gen_expression_splatter()
-    else:
-        print("Generate gene expression.")
-        sim_gene_expression,sim_cell_type,sim_cell_neighbour = sim.gen_expression(drop_rate = None)
-
-    ### Save the simulator to the file
-    print("Saving...")
-    np.savetxt(join(o_f,"simulator_gene.csv"),sim_gene_expression,delimiter = ",")
-    #new
-    np.savetxt(join(o_f,"simulator_celltype.csv"),sim_cell_type,delimiter = ",")
-    return cell_idxs   #changed
-
-def get_trans(adata = None, ct = None):
-    sn = get_spaital_network(Num_sample=adata.obs.shape[0],
-                         spatial=adata.obsm["spatial"], coord_type = "generic",
-                         n_neighs=8)
-    onehot_ct = get_onehot_ct(init_assign=ct)
-    nb_count = np.array(sn * onehot_ct, dtype=np.float32)
-    target_trans = get_nb_freq(nb_count=nb_count, onehot_ct=onehot_ct)
-    return target_trans
-
-def get_onehot_ct(init_assign = None):
-    label_encoder = LabelEncoder()
-    integer_encoded = label_encoder.fit_transform(init_assign)
-    onehot_encoder = OneHotEncoder(sparse=False)
-    integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
-    onehot_ct = onehot_encoder.fit_transform(integer_encoded)
-    return onehot_ct.astype(np.float32)
 
 def get_sim_spot_level_expr( spot_num = None, spot_row = None, spot_col = None,
                             Num_sample = None, spot_diameter = None, image_width = None,
                             image_height = None,celltype_assignment = None,coord_type = None,
                             cell_spatial = None,sim_cell_expr = None,gap = 0,
                            spot_generate_type = "square",cell_coord_type = "grid",
-                           grid_row = None, grid_col = None):
+                            custom_spot_loc=None, grid_row = None, grid_col = None):
     if spot_generate_type == "square" and cell_coord_type == "generic":
         ## 随机点的网格划分，不是网格merge 
 
@@ -233,7 +73,7 @@ def get_sim_spot_level_expr( spot_num = None, spot_row = None, spot_col = None,
 
         spot_loc =  np.vstack((spot_pixel_row, spot_pixel_col)).T
 
-        cellandspot_loc =  np.vstack((cell_location,spot_loc))
+        cellandspot_loc =  np.vstack((cell_spatial,spot_loc))
 
         ## get中心点的邻居
         sn = get_spaital_network(Num_sample=cellandspot_loc.shape[0],spatial=cellandspot_loc,
@@ -305,12 +145,12 @@ def get_sim_spot_level_expr( spot_num = None, spot_row = None, spot_col = None,
         ## custom_spot_loc and spot_diameter
         spot_loc = custom_spot_loc
 
-        cellandspot_loc =  np.vstack((cell_location,spot_loc ))
+        cellandspot_loc =  np.vstack((cell_spatial,spot_loc ))
         sn = get_spaital_network(Num_sample=cellandspot_loc.shape[0],spatial=cellandspot_loc,
                          coord_type = "generic",n_rings = 1,set_diag=False,
                                  radius = spot_diameter/2)
 
-        spot_cell_idx_matrix = sn[cell_location.shape[0]:,cell_location.shape[0]]
+        spot_cell_idx_matrix = sn[cell_spatial.shape[0]:,cell_spatial.shape[0]]
 
         spot_expr = spot_cell_idx_matrix * sim_cell_expr.X
 
@@ -320,6 +160,21 @@ def get_sim_spot_level_expr( spot_num = None, spot_row = None, spot_col = None,
         spot_ct_count = spot_cell_idx_matrix * onehot_ct
 
     return spot_expr, spot_loc, spot_cell_idx_matrix
+
+
+# def rctd(adata=None, ctkey=None, method=None, file_path=None, seed=123, ):
+#     W, exp_spots2gene, spatial, spots2cell = RCTD_naive(scdata=adata,
+#                                                         row=row_col_size,
+#                                                         col=row_col_size,
+#                                                         Min=0,
+#                                                         Max=1,
+#                                                         ctkey=ctkey,
+#                                                         maxctnum=len(adata.obs.celltype.unique()))
+#     exp_spots2gene = downsample_matrix_by_cell(exp_spots2gene, 10000)
+#     simulatedat = sc.AnnData(exp_spots2gene[:len(adata), :])
+#     simulatedat.obs = pd.DataFrame(
+#         np.array(W[:len(adata), :] @ range(len(adata.obs.celltype.unique())), dtype=int))
+
 
 def sim_naive_cell(use_real_adata=None,
               ctkey=None,method=None,
@@ -348,6 +203,7 @@ def sim_naive_cell(use_real_adata=None,
         simulatedat.obs = pd.DataFrame(np.array(W[:len(use_real_adata),:] @ range(len(use_real_adata.obs.celltype.unique())),dtype = int))
 
     if method == 'sterepscope':
+        ct = use_real_adata.obs.celltype.unique()
         use_exp = pd.DataFrame(use_real_adata.X,columns=use_real_adata.var.gene)
         use_exp.to_csv(file_path+str(len(ct))+'ct_real_exp.csv')
         use_label = use_real_adata.obs.celltype.to_frame()
@@ -364,55 +220,8 @@ def sim_naive_cell(use_real_adata=None,
         simulatedat = sc.AnnData(data1)
         simulatedat.obs = pd.DataFrame(np.array(menber @ range(len(use_real_adata.obs.celltype.unique())),dtype = int))
 
-
-    if method == 'fict':
-        adata = use_real_adata.copy()
-        gene_mean,gene_std = get_gene_prior(adata.to_df(),cell_types)
-        neighbour_freq_prior,tags,type_count = get_nf_prior(coor,cell_types)
-        cell_types_tamp = np.zeros(len(cell_types))
-        real_target_trans = get_trans(adata = adata , ct = adata.obs.label)
-        for i_fict in range(len(np.unique(cell_types))):
-            cell_types_tamp[np.where(cell_types == np.unique(cell_types)[i_fict])[0]] = i_fict
-        cell_types = cell_types_tamp.astype(int)
-
-        if not os.path.isdir(file_path+'/fict_simu/'):
-            os.mkdir(file_path+'/fict_simu/')
-        cell_idxs = simulation(file_path+'/fict_simu/'+'fict_simu_real',
-               sample_n = adata.shape[0],
-               density = 20,
-               method = 0, #use trans matrix
-               n_g = adata.shape[1],
-               n_c = len(adata.obs.celltype.unique()),
-               using_splatter= False,
-               use_refrence_coordinate=True, #use real location
-               coor = adata.obsm['spatial'].copy(),
-               cell_types = np.asarray(adata.obs.celltype),
-               gene_mean = gene_mean,
-               gene_std = gene_std,
-               neighbour_freq_prior = real_target_trans,
-               tags = tags,
-               type_count = type_count,
-               random_seed = seed
-                )
-        exp = pd.read_csv(file_path+'/fict_simu/'+'fict_simu_real'+'/real_tran'+'/simulator_gene.csv',header=None)
-        exp.columns = adata.var['gene'].values
-        exp.index = adata.obs.index.values
-        label = pd.read_csv(file_path+'/fict_simu/'+'fict_simu_real'+'/real_tran'+'/simulator_celltype.csv',header=None)
-        label.columns = ['label']
-        label['celltype'] = adata.obs.celltype.values
-        for j in range(len(np.unique(adata.obs.celltype))):
-            label.iloc[np.where(label['label'] == j)[0],1] = np.unique(adata.obs.celltype)[j]
-            label['label'] = label['label'].astype(int).astype('category')
-            simu_adata = sc.AnnData(exp)
-            # 对fict_dist数据单独做处理，因为生成的不是counts,进行取整操作
-            simu_adata.X = np.round(simu_adata.X)
-            simu_adata.obs['celltype'] = label['celltype'].values
-            simu_adata.obs['label'] = label['label'].values
-            simu_adata.obsm['spatial'] = adata.obsm['spatial'][cell_idxs,:]
-            simu_adata.write_h5ad(file_path+'/fict_simu_cell_level'+'.h5ad')
-        simulatedat = simu_adata
     #save
-    if np.isin(method,['RCTD','STRIDE','stereoscope']):
+    if np.isin(method,['RCTD','STRIDE']):
         simulatedat.obs.columns = ['label']
         simulatedat.obs.label = simulatedat.obs.label.astype(int).astype('category')
         simulatedat.obs['celltype'] = use_real_adata.obs[ctkey]

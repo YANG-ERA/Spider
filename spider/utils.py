@@ -80,10 +80,19 @@ def init_ct(Num_celltype = None,Num_ct_sample = None, seed = None):
 def get_onehot_ct(init_assign = None):
     label_encoder = LabelEncoder()
     integer_encoded = label_encoder.fit_transform(init_assign)
-    onehot_encoder = OneHotEncoder(sparse=False)
+    onehot_encoder = OneHotEncoder(sparse_output=False)
     integer_encoded = integer_encoded.reshape(len(integer_encoded), 1)
     onehot_ct = onehot_encoder.fit_transform(integer_encoded)
     return onehot_ct.astype(np.float32)
+
+def get_trans(adata = None, ct = None):
+    sn = get_spaital_network(Num_sample=adata.obs.shape[0],
+                         spatial=adata.obsm["spatial"], coord_type = "generic",
+                         n_neighs=8)
+    onehot_ct = get_onehot_ct(init_assign=ct)
+    nb_count = np.array(sn * onehot_ct, dtype=np.float32)
+    target_trans = get_nb_freq(nb_count=nb_count, onehot_ct=onehot_ct)
+    return target_trans
 
 @numba.jit("float32[:, ::1](float32[:, ::1], float32[:, ::1])")
 def get_nb_freq( nb_count = None, onehot_ct = None):

@@ -8,7 +8,7 @@ import scipy
 import random 
 import seaborn as sns
 import math
-from sklearn.preprocessing import  OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder
 from scipy.sparse import csr_matrix
 
 import os
@@ -65,7 +65,7 @@ def RCTD_naive(scdata, row=50, col=50, Min = 5, Max = 10, ctkey = 'celltype', ma
     Allcelltype = scdata.obs[ctkey].unique() #提取celltype name
     Num_celltype = Allcelltype.shape[0] #celltype数
     #onehot
-    onehot_encoder = OneHotEncoder(sparse=True)
+    onehot_encoder = OneHotEncoder(sparse_output=True)
     integer_encoded = np.array(celltypes).reshape(len(celltypes), 1)
     cell2celltype = onehot_encoder.fit_transform(integer_encoded)
     
@@ -180,7 +180,7 @@ def STRIDE_naive(scdata,celltype_keys,n_spots,min_cells=2,max_cells=10):
     celltypes = scdata.obs[celltype_keys]
     # 将每个细胞的细胞类型转为onehot
     n_celltypes = celltypes.unique().shape[0]
-    onehot_encoder = OneHotEncoder(sparse=True)
+    onehot_encoder = OneHotEncoder(sparse_output=True)
     integer_encoded = np.array(celltypes).reshape(len(celltypes), 1)
     cell2celltype = onehot_encoder.fit_transform(integer_encoded)
 
