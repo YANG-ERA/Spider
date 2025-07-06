@@ -2,9 +2,17 @@ LICENSE.txt
 README.md
 setup.py
 spider/Annealing.py
+spider/MainWidget.py
+spider/PaintBoard.py
 spider/__init__.py
+spider/data_op.py
 spider/enhance.py
+spider/joint_simulator.py
+spider/main.py
+spider/opt.py
 spider/random_based_utils.py
+spider/random_generator.py
+spider/run_scsim.py
 spider/scsim.py
 spider/sim_expr.py
 spider/sim_naive.py

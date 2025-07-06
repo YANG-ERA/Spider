@@ -21,17 +21,30 @@ from sklearn.preprocessing import LabelEncoder
 import numba
 import warnings
 warnings.filterwarnings("ignore", message=".*The 'nopython' keyword.*")
-def get_ct_sample(Num_celltype = None, Num_sample = None, prior = None):
+
+
+def get_ct_sample(Num_celltype=None, Num_sample=None, prior=None):
     if prior is None:
-        prior = np.ones(Num_celltype)/Num_celltype
+        prior = np.ones(Num_celltype) / Num_celltype
     else:
-        assert len(prior) == Num_celltype, "please check your prior length, that must be equal to the number of celltype"
-        assert sum(prior)<= 1, "Sum of prior is out of range!"
-        assert 1-sum(prior) <1e-3,"Sum of prior is equal to 1"
-    
-    Num_ct_sample = np.zeros(Num_celltype,dtype = np.int32)
-    Num_ct_sample[0:(Num_celltype-1)] = (prior[0:(Num_celltype-1)]*Num_sample+0.5*np.ones(Num_celltype-1)).astype(int)
-    Num_ct_sample[Num_celltype-1] = Num_sample-np.sum(Num_ct_sample[0:(Num_celltype-1)])
+        assert len(
+            prior) == Num_celltype, "please check your prior length, that must be equal to the number of celltype"
+        assert sum(prior) <= 1, "Sum of prior is out of range!"
+        assert 1 - sum(prior) < 1e-3, "Sum of prior is equal to 1"
+
+    Num_ct_sample = np.zeros(Num_celltype, dtype=np.int32)
+    Num_ct_sample[0:(Num_celltype - 1)] = (
+                prior[0:(Num_celltype - 1)] * Num_sample + 0.5 * np.ones(Num_celltype - 1)).astype(int)
+    Num_ct_sample[Num_celltype - 1] = Num_sample - np.sum(Num_ct_sample[0:(Num_celltype - 1)])
+
+    # Check for any 0 elements in Num_ct_sample
+    zero_elements = np.where(Num_ct_sample == 0)[0]
+    if zero_elements.size > 0:
+        # Find the index of the largest element in Num_ct_sample
+        max_index = np.argmax(Num_ct_sample)
+        # Distribute one sample from the largest element to each of the 0 elements
+        Num_ct_sample[zero_elements] = 1
+        Num_ct_sample[max_index] -= len(zero_elements)
     return Num_ct_sample
 
 def addictive_freq(n_c):
@@ -85,10 +98,10 @@ def get_onehot_ct(init_assign = None):
     onehot_ct = onehot_encoder.fit_transform(integer_encoded)
     return onehot_ct.astype(np.float32)
 
-def get_trans(adata = None, ct = None):
+def get_trans(adata = None, ct = None,n_neighs=8):
     sn = get_spaital_network(Num_sample=adata.obs.shape[0],
                          spatial=adata.obsm["spatial"], coord_type = "generic",
-                         n_neighs=8)
+                         n_neighs=n_neighs)
     onehot_ct = get_onehot_ct(init_assign=ct)
     nb_count = np.array(sn * onehot_ct, dtype=np.float32)
     target_trans = get_nb_freq(nb_count=nb_count, onehot_ct=onehot_ct)
