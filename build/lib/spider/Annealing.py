@@ -94,7 +94,7 @@ def STsim(Num_sample=None,
             if iter_n % 100 == 0:
                 error = np.linalg.norm(nb_freq - target_trans)
                 error_record.append(error)
-            if iter_n % 1000 ==0:
+            if iter_n % 10000 ==0:
                 print("%5d iteration, error %.3f" % (iter_n, error))
 
             if len(error_record) > same_errlen:

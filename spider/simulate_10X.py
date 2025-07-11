@@ -20,7 +20,7 @@ from .utils import *
 from .Annealing import *
 from .enhance import *
 from scipy.sparse import coo_matrix,csr_matrix
-
+from joblib import Parallel, delayed
 
 def get_mesh_counts(locations = None, grid_row = None, grid_col = None,
                    image_width = None, image_height = None):
@@ -565,3 +565,176 @@ def extract_loc_3d(img=None,
     cell_location = segments_matrix.groupby(segments_matrix["segment_label"]).mean().values 
     print(f"Number of cells in image: {cell_location.shape[0]}")
     return cell_location
+
+
+
+
+def generate_in_grid_positions(n_cells, grid_bounds, dx, dy):
+    """
+    Generate random positions within grid boundaries
+    
+    Parameters:
+        n_cells: Number of cells to generate
+        grid_bounds: Grid boundaries (x_min, x_max, y_min, y_max)
+        dx: Grid width
+        dy: Grid height
+    
+    Returns:
+        Array of randomly generated positions within grid (n_cells, 2)
+    """
+    x_min, x_max, y_min, y_max = grid_bounds
+    # Ensure positions stay within grid boundaries
+    new_x = np.random.uniform(x_min, min(x_min + dx, x_max), n_cells)
+    new_y = np.random.uniform(y_min, min(y_min + dy, y_max), n_cells)
+    return np.column_stack((new_x, new_y))
+
+def PSA_worker(i, cell_spot_idx_matrix, cell_location, adata, perturb, 
+               grid_row_loc, grid_col_loc, dx, dy, grid_row, grid_col):
+    """
+    Modified worker function supporting position perturbation
+    """
+    patch_cell_idx = np.where(cell_spot_idx_matrix.getcol(i).toarray() != 0)[0]
+    patch_cell_id = adata.obs.label[patch_cell_idx]
+    
+    # Calculate current grid boundaries
+    row_idx = i // grid_col
+    col_idx = i % grid_col
+    x_min = row_idx * dx
+    x_max = (row_idx + 1) * dx
+    y_min = col_idx * dy
+    y_max = (col_idx + 1) * dy
+    grid_bounds = (x_min, x_max, y_min, y_max)
+    
+    # Get original positions or generate random positions within grid
+    if perturb and len(patch_cell_idx) > 0:
+        patch_cell_loc = generate_in_grid_positions(
+            len(patch_cell_idx), grid_bounds, dx, dy
+        )
+    else:
+        patch_cell_loc = cell_location[patch_cell_idx]
+    
+    if len(patch_cell_idx) == 0:
+        return None, None
+    elif len(np.unique(patch_cell_id)) == 1:
+        return [int(x) for x in patch_cell_id.values.tolist()], patch_cell_loc
+    else:
+        # Adaptively determine neighborhood size
+        n_cells = len(patch_cell_idx)
+        n_neighs = np.int(np.ceil(n_cells/2)) if n_cells <= 8 else 8
+        
+        # Build spatial network
+        sn = get_spaital_network(
+            Num_sample=n_cells,
+            spatial=patch_cell_loc, 
+            coord_type="generic",
+            n_neighs=n_neighs
+        )
+
+        # Prepare simulation parameters
+        patch_ct = np.sort(np.unique(patch_cell_id))
+        mapping_dict = dict(zip(patch_ct, range(len(patch_ct))))
+        patch_cell_id_map = [mapping_dict[x] for x in patch_cell_id]
+
+        onehot_ct = get_onehot_ct(init_assign=patch_cell_id_map)
+        nb_count = np.array(sn * onehot_ct, dtype=np.float32)
+        target_trans = get_nb_freq(nb_count=nb_count, onehot_ct=onehot_ct)
+
+        Num_ct_sample = np.bincount(patch_cell_id_map)
+        prior = Num_ct_sample/np.sum(Num_ct_sample)
+        
+        # Execute simulation
+        res, _ = simulate_10X(
+            cell_num=n_cells,
+            Num_celltype=target_trans.shape[0],
+            prior=prior,
+            target_trans=target_trans,
+            Num_ct_sample=Num_ct_sample,
+            spot_radius=None,
+            spot_min=None,
+            spot_max=None,
+            image_width=None,
+            image_height=None,
+            cell_location=patch_cell_loc,
+            tol=2e-2,
+            T=1e-2,
+            loop_times=None,
+            smallsample_max_iter=1000,
+            bigsample_max_iter=10000,
+            ref=None
+        )
+    
+        # Map back to original cell types
+        mapping_dict_rev = dict(zip(range(len(patch_ct)), patch_ct))
+        res = [mapping_dict_rev[x] for x in res]
+
+        return res, patch_cell_loc
+
+def PSA(grid_row, grid_col, adata, ct_key="label", seed=2024, perturb=False):
+    """
+    Modified PSA function supporting position perturbation
+    
+    Parameters:
+        grid_row, grid_col: Number of grid rows and columns
+        adata: AnnData object containing spatial coordinates and cell types
+        ct_key: Key name for cell type column
+        seed: Random seed
+        perturb: Whether to generate random positions within grid
+    """
+    np.random.seed(seed)
+    grid_num = grid_row * grid_col
+    
+    # Get original coordinates and grid information
+    cell_location = adata.obsm["spatial"]
+    cell_spot_idx_matrix, grid_row_loc, grid_col_loc, image_width, image_height = get_mesh_counts(
+        locations=cell_location,
+        grid_row=grid_row,
+        grid_col=grid_col
+    )
+    
+    # Calculate grid dimensions
+    dx = image_width / grid_row
+    dy = image_height / grid_col
+    
+    # Prepare result storage
+    all_simulated_labels = adata.obs[ct_key].copy()
+    all_perturbed_locations = cell_location.copy()
+    
+    # Parallel processing for each grid
+    parallel_obj = Parallel(n_jobs=4, verbose=10, backend='loky')
+    results = parallel_obj(
+        delayed(PSA_worker)(
+            i, 
+            cell_spot_idx_matrix, 
+            cell_location, 
+            adata, 
+            perturb,
+            grid_row_loc, 
+            grid_col_loc, 
+            dx, 
+            dy,
+            grid_row,
+            grid_col
+        ) 
+        for i in range(grid_num)
+    )
+    
+    # Consolidate results
+    for i in range(grid_num):
+        result = results[i]
+        if result is None:
+            continue
+            
+        simulated_labels, perturbed_locs = result
+        patch_cell_idx = np.where(cell_spot_idx_matrix.getcol(i).toarray() != 0)[0]
+        
+        if simulated_labels is not None and len(patch_cell_idx) > 0:
+            all_simulated_labels[patch_cell_idx] = simulated_labels
+        if perturbed_locs is not None and len(patch_cell_idx) > 0:
+            all_perturbed_locations[patch_cell_idx] = perturbed_locs
+    
+    # Update adata object
+    spider_adata = adata.copy()
+    spider_adata.obs["spider_simu"] = all_simulated_labels
+    spider_adata.obsm["spatial_perturbed"] = all_perturbed_locations
+    
+    return spider_adata    

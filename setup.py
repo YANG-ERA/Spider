@@ -18,7 +18,7 @@ DESCRIPTION = 'A tools to simulate spatial transcriptomics data.'
 EMAIL = '599568651@qq.com'
 URL="https://github.com/YANG-ERA/Spider/tree/main"
 AUTHOR ='Jiyuan Yang'
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 
 setup(
     name=NAME,
@@ -41,7 +41,9 @@ setup(
         "scikit-learn",
         "scipy",
         "seaborn",
-        "squidpy"
+        "squidpy",
+        "joblib",
+        "plotly"
 
     ]
 )
