@@ -11,7 +11,7 @@ Please see our manuscript [Yang, Wei et al. (2023)](https://www.biorxiv.org/cont
 * Provide customized data generation APIs for special application scenarios, such as the tissue layer structure implemented by Napari interface and some regular structures for reference.
 
 ## Tutorials
-Tutorials can be found here: https://spider-analyses.readthedocs.io/en/latest/Tutorial1_reference_based_tutorial.html
+Tutorials can be found here:[ https://spider-analyses.readthedocs.io/en/latest/Tutorial1_reference_based_tutorial.html](https://spider-analyses.readthedocs.io/en/latest/)
 ## Software dependencies
 anndata 
 matplotlib 
@@ -24,6 +24,8 @@ scikit_learn
 scipy
 seaborn
 squidpy
+plotly
+joblib
 ## installation
 Install Spider via PyPI by using:
 
