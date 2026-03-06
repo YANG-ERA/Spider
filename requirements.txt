@@ -1,0 +1,11 @@
+anndata
+matplotlib
+numba
+numpy
+pandas
+PyQt5
+scanpy
+scikit_learn
+scipy
+seaborn
+squidpy
