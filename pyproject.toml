@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "st-spider"
+version = "1.2.0"
+description = "A flexible framework for simulating spatial transcriptomics data."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE.txt" }
+authors = [
+  { name = "Jiyuan Yang", email = "599568651@qq.com" }
+]
+keywords = [
+  "spatial transcriptomics",
+  "single-cell",
+  "simulation",
+  "bioinformatics",
+  "spatial omics"
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+  "anndata>=0.9",
+  "joblib>=1.2",
+  "matplotlib>=3.6",
+  "numba>=0.57",
+  "numpy>=1.23",
+  "pandas>=1.5",
+  "scikit-learn>=1.1",
+  "scipy>=1.9",
+]
+
+[project.optional-dependencies]
+plot = [
+  "plotly>=5",
+  "seaborn>=0.12",
+]
+spatial = [
+  "scanpy>=1.9",
+  "squidpy>=1.3",
+]
+image = [
+  "cellpose>=2",
+  "napari[all]>=0.4",
+  "squidpy>=1.3",
+]
+torch = [
+  "torch>=2",
+]
+dev = [
+  "build",
+  "pytest>=7",
+  "twine",
+]
+all = [
+  "cellpose>=2",
+  "napari[all]>=0.4",
+  "plotly>=5",
+  "scanpy>=1.9",
+  "seaborn>=0.12",
+  "squidpy>=1.3",
+  "torch>=2",
+]
+
+[project.urls]
+Homepage = "https://github.com/YANG-ERA/Spider"
+Documentation = "https://spider-analyses.readthedocs.io/en/latest/"
+Publication = "https://doi.org/10.1093/bioinformatics/btaf562"
+Issues = "https://github.com/YANG-ERA/Spider/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["spider*"]

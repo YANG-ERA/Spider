@@ -1,13 +1,14 @@
-anndata
-matplotlib
-numba
-numpy
-pandas
-scanpy
-scikit-learn
-scipy
-seaborn
-squidpy
-joblib
-plotly
+anndata>=0.9
+joblib>=1.2
+matplotlib>=3.6
+numba>=0.57
+numpy>=1.23
+pandas>=1.5
+scikit-learn>=1.1
+scipy>=1.9
 
+# Optional feature groups:
+#   pip install "st-spider[plot]"     # plotly, seaborn
+#   pip install "st-spider[spatial]"  # scanpy, squidpy compatibility
+#   pip install "st-spider[image]"    # image segmentation and interactive tools
+#   pip install "st-spider[torch]"    # torch-backed stereoscope/FICT-style helpers

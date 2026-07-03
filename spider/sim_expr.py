@@ -1,25 +1,8 @@
-
-import scanpy as sc
 import anndata as ad
 import numpy as np
 import pandas as pd
-import squidpy as sq
-import matplotlib.pyplot as plt
-import scipy
-import random 
-import matplotlib
-import seaborn as sns
-import math
-#import time
-from scipy.special import softmax
-from scipy.optimize import minimize
-from numpy.random import uniform
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.preprocessing import LabelEncoder
-from .utils import *
-from .Annealing import *
-from .simulate_10X import *
-import numba
+from .core import get_onehot_ct
+from .neighbors import get_spaital_network
 from scipy.sparse import csr_matrix
 
 def get_sim_cell_level_expr(celltype_assignment=None, adata=None,
@@ -82,7 +65,7 @@ def get_sim_spot_level_expr(spot_num=None, spot_row=None, spot_col=None,
                             image_height=None, celltype_assignment=None, coord_type=None,
                             cell_spatial=None, sim_cell_expr=None, gap=0,
                             spot_generate_type="square", cell_coord_type="grid",
-                            grid_row=None, grid_col=None):
+                            grid_row=None, grid_col=None, custom_spot_loc=None):
     if spot_generate_type == "square" and cell_coord_type == "generic":
         # Grid partitioning for random points, not grid merging
 
@@ -136,14 +119,14 @@ def get_sim_spot_level_expr(spot_num=None, spot_row=None, spot_col=None,
 
         spot_loc = np.vstack((spot_pixel_row, spot_pixel_col)).T
 
-        cellandspot_loc = np.vstack((cell_location, spot_loc))
+        cellandspot_loc = np.vstack((cell_spatial, spot_loc))
 
         # Get neighbors of center points
         sn = get_spaital_network(Num_sample=cellandspot_loc.shape[0], spatial=cellandspot_loc,
                          coord_type="generic", n_rings=1, set_diag=False,
                                  radius=spot_diameter/2)
 
-        spot_cell_idx_matrix = sn[Num_sample:, Num_sample]
+        spot_cell_idx_matrix = sn[Num_sample:, :Num_sample]
 
         spot_expr = spot_cell_idx_matrix * sim_cell_expr.X
 
@@ -206,12 +189,12 @@ def get_sim_spot_level_expr(spot_num=None, spot_row=None, spot_col=None,
         # custom_spot_loc and spot_diameter
         spot_loc = custom_spot_loc
 
-        cellandspot_loc = np.vstack((cell_location, spot_loc))
+        cellandspot_loc = np.vstack((cell_spatial, spot_loc))
         sn = get_spaital_network(Num_sample=cellandspot_loc.shape[0], spatial=cellandspot_loc,
                          coord_type="generic", n_rings=1, set_diag=False,
                                  radius=spot_diameter/2)
 
-        spot_cell_idx_matrix = sn[cell_location.shape[0]:, cell_location.shape[0]]
+        spot_cell_idx_matrix = sn[cell_spatial.shape[0]:, :cell_spatial.shape[0]]
 
         spot_expr = spot_cell_idx_matrix * sim_cell_expr.X
 
