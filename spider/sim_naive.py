@@ -5,6 +5,13 @@ import os
 #from .opt import valid_neighbourhood_frequency
 from os.path import join
 import time
+import anndata as ad
+import numpy as np
+import pandas as pd
+from scipy.sparse import csr_matrix
+
+from .core import get_onehot_ct
+from .neighbors import get_spaital_network
 from .sim_expr import *
 from .random_based_utils import *
 
@@ -193,13 +200,13 @@ def sim_naive_cell(use_real_adata=None,
                                                      ctkey=ctkey,
                                                      maxctnum = len(use_real_adata.obs.celltype.unique()))
         exp_spots2gene = downsample_matrix_by_cell(exp_spots2gene,10000)
-        simulatedat = sc.AnnData(exp_spots2gene[:len(use_real_adata),:])
+        simulatedat = ad.AnnData(exp_spots2gene[:len(use_real_adata),:])
         simulatedat.obs = pd.DataFrame(np.array(W[:len(use_real_adata),:] @ range(len(use_real_adata.obs.celltype.unique())),dtype = int))
 
     if method == 'STRIDE':
         W,exp_spots2gene,spatial = STRIDE_naive(use_real_adata, ctkey, row_col_size*row_col_size, min_cells=1, max_cells=2)
         exp_spots2gene = downsample_matrix_by_cell(exp_spots2gene,10000)
-        simulatedat = sc.AnnData(exp_spots2gene[:len(use_real_adata),:])
+        simulatedat = ad.AnnData(exp_spots2gene[:len(use_real_adata),:])
         simulatedat.obs = pd.DataFrame(np.array(W[:len(use_real_adata),:] @ range(len(use_real_adata.obs.celltype.unique())),dtype = int))
 
     if method == 'sterepscope':
@@ -217,7 +224,7 @@ def sim_naive_cell(use_real_adata=None,
         data1 = pd.read_csv(out_dir+'counts.st_synth.tsv',index_col = 0)
         data1 = data1.sort_index(axis=1)
         menber = pd.read_csv(out_dir+'members.st_synth.tsv',index_col = 0)
-        simulatedat = sc.AnnData(data1)
+        simulatedat = ad.AnnData(data1)
         simulatedat.obs = pd.DataFrame(np.array(menber @ range(len(use_real_adata.obs.celltype.unique())),dtype = int))
 
     #save

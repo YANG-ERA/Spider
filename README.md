@@ -1,35 +1,115 @@
 # Spider
 
-Spider is a flexible and unified framework for simulating ST data by leveraging spatial neighborhood patterns among cells through a conditional optimization algorithm. By inputting spatial patterns extracted from real data or user-specified transition matrix, Spider assigns cell type labels through the BSA algorithm that improves the computational efficiency of conventional simulated annealing algorithm. Gene expression profiles for individual cell types can be generated either using real or simulated data by Splatter or scDesign2. Finally, spot-level ST data can be simulated by aggregating cells inside generated spots using 10X spatial encoding scheme or user-specified generation rules. ![](./figures/Figure1.png) 
-## Manuscript 
-Please see our manuscript [Yang, Wei et al. (2023)](https://www.biorxiv.org/content/10.1101/2023.05.21.541605v1) in BioRxiv to learn more. 
-## The Key features of Spider
-* Characterize spatial patterns by cell type composition and their transition matrix. 
-* Flexible to implement most existing simulation methods as special cases.
-* Design the batched simulated annealing algorithm to generate ST data for 1 million cells in < 5 minutes.
-* Generate various scenarios of the tumor immune micro-environment by capturing the dynamic changes in diverse immune cell components and transition matrices.
-* Provide customized data generation APIs for special application scenarios, such as the tissue layer structure implemented by Napari interface and some regular structures for reference.
+Spider is a flexible and unified framework for simulating spatial transcriptomics (ST) data. It represents cellular spatial organization with two interpretable inputs: cell-type proportions and a transition probability matrix between adjacent cells. Spider then assigns cell types on a spatial neighbor graph with a batched simulated annealing strategy and can aggregate single-cell profiles into spot-level ST data.
 
-## Tutorials
-Tutorials can be found here: [https://spider-analyses.readthedocs.io/en/latest/](https://spider-analyses.readthedocs.io/en/latest/).
-## Software dependencies
-anndata 
-matplotlib 
-numba 
-numpy 
-pandas
-PyQt5
-scanpy 
-scikit_learn
-scipy
-seaborn
-squidpy
-plotly
-joblib
-## installation
-Install Spider via PyPI by using:
+## Publication
 
-```         
+Yang J, Wei N, Qu Y, et al. Spider: a flexible and unified framework for simulating spatial transcriptomics data. *Bioinformatics*. 2026;42(1):btaf562. <https://doi.org/10.1093/bioinformatics/btaf562>
+
+## Key Features
+
+- Reference-free simulation driven by cell-type proportions and transition matrices.
+- Predefined spatial patterns including attractive, repulsive, layered, and gyrus-like structures.
+- Batched simulated annealing for scalable cell-type assignment.
+- Cell-level simulation with optional spot-level aggregation.
+- Optional compatibility helpers for benchmark-style simulators such as RCTD, STRIDE, stereoscope, and FICT-style workflows.
+- Optional image and interactive workflows for histology-derived coordinates and custom domain structures.
+
+## Installation
+
+Install the core package:
+
+```bash
 pip install st-spider
 ```
 
+Install optional feature groups only when needed:
+
+```bash
+pip install "st-spider[plot]"
+pip install "st-spider[spatial]"
+pip install "st-spider[image]"
+pip install "st-spider[torch]"
+```
+
+The core installation avoids heavy optional dependencies such as `torch`, `scanpy`, `squidpy`, `napari`, and `cellpose`. This keeps the main simulator easier to install while preserving advanced workflows for users who need them.
+
+## Quick Start
+
+```python
+import spider
+
+prior = [0.6, 0.3, 0.1]
+target = spider.make_transition_matrix("attractive", n_celltypes=3, strength=0.8)
+
+sim = spider.simulate_cells(
+    n_cells=1000,
+    n_celltypes=3,
+    prior=prior,
+    transition=target,
+    plate_shape=(100, 100),
+    random_state=1,
+)
+
+print(sim.summary())
+adata = sim.to_anndata()
+```
+
+See the tutorials at <https://spider-analyses.readthedocs.io/en/latest/>.
+
+## Estimating Parameters From Real Data
+
+Spider can estimate cell-type proportions and neighborhood transition matrices from annotated spatial data:
+
+```python
+params = spider.estimate_parameters_from_adata(
+    adata,
+    label_key="celltype",
+    spatial_key="spatial",
+    n_neighbors=8,
+)
+
+sim = spider.simulate_cells(
+    n_cells=adata.n_obs,
+    prior=params.prior,
+    transition=params.transition,
+    coordinates=adata.obsm["spatial"],
+    random_state=1,
+)
+```
+
+## Spatially Varying Patterns
+
+For tissues where a single global transition matrix is too restrictive, pass zone-specific targets:
+
+```python
+zone_transitions = {
+    "tumor_core": spider.make_transition_matrix("attractive", 3, strength=0.85),
+    "invasion_front": spider.make_transition_matrix("mixed", 3),
+}
+
+sim = spider.simulate_cells(
+    n_cells=adata.n_obs,
+    n_celltypes=3,
+    prior=[0.5, 0.3, 0.2],
+    coordinates=adata.obsm["spatial"],
+    zone_labels=adata.obs["region"].to_numpy(),
+    zone_transitions=zone_transitions,
+    random_state=1,
+)
+```
+
+## Development
+
+Install development dependencies:
+
+```bash
+pip install -e ".[dev,plot,spatial]"
+pytest
+```
+
+Build release artifacts outside version control:
+
+```bash
+python -m build
+```

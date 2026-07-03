@@ -1,28 +1,28 @@
-import scanpy as sc
-import anndata as ad
 import numpy as np
 import pandas as pd
-import squidpy as sq
 
-import scipy
-import random 
-import seaborn as sns
-import math
 from sklearn.preprocessing import OneHotEncoder
 from scipy.sparse import csr_matrix
 
-import os
 import os.path as osp
-import sys
-from collections import Counter
 
 import numba
 import multiprocessing as mp
 from functools import partial
-import torch as t
-import torch.distributions as dists
-import argparse as arp
-from typing import Dict,Callable,List
+from typing import Callable, Dict, List
+
+
+def _require_torch():
+    try:
+        import torch as t
+        import torch.distributions as dists
+    except ImportError as exc:
+        raise ImportError(
+            "stereoscope_naive requires torch. Install it with "
+            "`pip install 'st-spider[torch]'` or install torch from "
+            "the official PyTorch channel for your platform."
+        ) from exc
+    return t, dists
 
 
 ###############################################
@@ -204,7 +204,7 @@ def _assemble_spot(cnt : np.ndarray,
                   alpha : float = 1.0,
                   fraction : float = 1.0,  #修改处
                   bounds : List[int] = [10,30],
-                  )->Dict[str,t.Tensor]:
+                  )->Dict[str, object]:
 
     """Assemble single spot
 
@@ -232,6 +232,8 @@ def _assemble_spot(cnt : np.ndarray,
     spot
 
     """
+
+    t, dists = _require_torch()
 
     # sample between 10 to 30 cells to be present
     # at spot

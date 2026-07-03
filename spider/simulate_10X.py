@@ -1,22 +1,7 @@
-#import squidpy as sq
-import scanpy as sc
-import anndata as ad
 import numpy as np
 import pandas as pd
-import squidpy as sq
-import matplotlib.pyplot as plt
-import scipy
-import random 
-import matplotlib
-import seaborn as sns
-import math
-#import time
-from scipy.special import softmax
-from scipy.optimize import minimize
-from numpy.random import uniform
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.preprocessing import LabelEncoder
-from .utils import *
+from .core import get_ct_sample, get_nb_freq, get_onehot_ct, init_ct
+from .neighbors import get_spaital_network
 from .Annealing import *
 from .enhance import *
 from scipy.sparse import coo_matrix,csr_matrix
@@ -225,7 +210,7 @@ def simulate_10X(cell_num=None,
             randcelltype = mutate(celltype_assignment=randcelltype,
                                   Num_ct_sample=Num_ct_sample)
     if cell_num <= 8:
-        n_neighs = np.int(np.ceil(cell_num/2))
+        n_neighs = int(np.ceil(cell_num/2))
     else:
         n_neighs = 8
     randsn = get_spaital_network(Num_sample=cell_num,
@@ -479,7 +464,7 @@ def simulate_10X_3d(cell_num=None,
 
     # For 3D spatial network, we need to modify get_spaital_network or use a 3D-aware method
     if cell_num <= 8:
-        n_neighs = np.int(np.ceil(cell_num/2))
+        n_neighs = int(np.ceil(cell_num/2))
     else:
         n_neighs = 8
         
@@ -620,7 +605,7 @@ def PSA_worker(i, cell_spot_idx_matrix, cell_location, adata, perturb,
     else:
         # Adaptively determine neighborhood size
         n_cells = len(patch_cell_idx)
-        n_neighs = np.int(np.ceil(n_cells/2)) if n_cells <= 8 else 8
+        n_neighs = int(np.ceil(n_cells/2)) if n_cells <= 8 else 8
         
         # Build spatial network
         sn = get_spaital_network(
@@ -737,4 +722,4 @@ def PSA(grid_row, grid_col, adata, ct_key="label", seed=2024, perturb=False):
     spider_adata.obs["spider_simu"] = all_simulated_labels
     spider_adata.obsm["spatial_perturbed"] = all_perturbed_locations
     
-    return spider_adata    
+    return spider_adata

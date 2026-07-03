@@ -19,7 +19,7 @@ def tag2int(label):
 
 def one_hot_vector(label,class_n = None):
     label_n = len(label)
-    if label.dtype != np.int:
+    if not np.issubdtype(label.dtype, np.integer):
         print("Input vector has a dtype %s"%(label.dtype))
         print("Transfering the data type into int.")
         _,tags = tag2int(label)
