@@ -165,6 +165,49 @@ def enhance_res(Num_sample=None,
 
     return ct_grid, lr_spatial
 
+def _enhance_res_3d(Num_sample, original_grid, grid_shape, window_shape,
+                    target_trans, Num_celltype, prior, lrct_assignment,
+                    swap_num, tol, smallsample_max_iter,
+                    bigsample_max_iter):
+    sample_slices = tuple(slice(None, None, width) for width in window_shape)
+    grid_indices = np.stack(
+        np.meshgrid(*(np.arange(size) for size in grid_shape), indexing="ij"),
+        axis=-1,
+    )[sample_slices].reshape(-1, 3)
+    lr_spatial = original_grid.reshape(*grid_shape, 3)[sample_slices].reshape(-1, 3)
+
+    if lrct_assignment is None:
+        counts = get_ct_sample(Num_celltype=Num_celltype,
+                               Num_sample=lr_spatial.shape[0], prior=prior)
+        labels = init_ct(Num_celltype=Num_celltype, Num_ct_sample=counts)
+    else:
+        labels = lrct_assignment[tuple(grid_indices.T)].copy()
+
+    if window_shape == (1, 1, 1):
+        counts = get_ct_sample(Num_celltype=Num_celltype,
+                               Num_sample=Num_sample, prior=prior)
+        labels = mutate(celltype_assignment=labels, Num_ct_sample=counts)
+
+    sn = get_spaital_network(Num_sample=lr_spatial.shape[0],
+                             spatial=lr_spatial, n_neighs=8)
+    labels = STsim(Num_sample=lr_spatial.shape[0],
+                   Num_celltype=Num_celltype,
+                   celltype_assignment=labels,
+                   target_trans=target_trans,
+                   T=1e-5, chain_len=100, error=1e2,
+                   tol=tol, decay=0.5, sn=sn, swap_num=swap_num,
+                   smallsample_max_iter=smallsample_max_iter,
+                   bigsample_max_iter=bigsample_max_iter)
+
+    coarse_shape = tuple(len(range(0, size, width))
+                         for size, width in zip(grid_shape, window_shape))
+    ct_grid = np.asarray(labels).reshape(coarse_shape)
+    for axis, width in enumerate(window_shape):
+        ct_grid = np.repeat(ct_grid, width, axis=axis)
+    ct_grid = ct_grid[tuple(slice(0, size) for size in grid_shape)]
+    return ct_grid, lr_spatial
+
+
 def enhance_loop(Num_sample=None,
                  Num_celltype=None,
                  prior=None,
@@ -180,7 +223,9 @@ def enhance_loop(Num_sample=None,
                  tol_list=None,
                  T=1e-5,
                  smallsample_max_iter=80000,
-                 bigsample_max_iter=10000):
+                 bigsample_max_iter=10000,
+                 grid_depth=None,
+                 windows_depth_list=None):
     '''
     Attention: 我们可以基于样本量推荐一个loop_times,
                 小样本许多参数是固定的，you can see `STsim` function
@@ -188,9 +233,11 @@ def enhance_loop(Num_sample=None,
                 
     
     '''
-    if Num_sample <=10000: loop_times  = 1
+    if Num_sample <=10000 and loop_times is None: loop_times = 1
     if loop_times is None:
         loop_times = np.round(np.log2(Num_sample / 1000) / 2).astype(int) + 1
+    if loop_times < 1:
+        raise ValueError("loop_times must be at least 1.")
 
     ##需要注意 不同分辨率窗口的row 与col 彼此之间要整除
     if windows_col_list is None and windows_row_list is None:
@@ -205,6 +252,47 @@ def enhance_loop(Num_sample=None,
 
     if tol_list is None:
         tol_list = [2e-2] * loop_times
+
+    if grid_depth is not None:
+        grid_shape = (grid_row, grid_col, grid_depth)
+        if any(size is None or size <= 0 for size in grid_shape):
+            raise ValueError("grid_row, grid_col and grid_depth must be positive for 3D grids.")
+        if Num_sample != int(np.prod(grid_shape)):
+            raise ValueError("Num_sample must equal grid_row * grid_col * grid_depth.")
+        original_grid = np.asarray(original_grid)
+        if original_grid.shape != (Num_sample, 3):
+            raise ValueError("original_grid must have shape (Num_sample, 3) for 3D grids.")
+        if windows_depth_list is None:
+            windows_depth_list = list(windows_row_list)
+        if not all(len(values) == loop_times for values in
+                   (windows_row_list, windows_col_list, windows_depth_list,
+                    swap_num_list, tol_list)):
+            raise ValueError("3D window and annealing lists must match loop_times.")
+        if any(width <= 0 for widths in zip(windows_row_list,
+                                           windows_col_list,
+                                           windows_depth_list)
+               for width in widths):
+            raise ValueError("3D window sizes must be positive.")
+        if (windows_row_list[-1], windows_col_list[-1],
+                windows_depth_list[-1]) != (1, 1, 1):
+            raise ValueError("The final 3D window must be (1, 1, 1).")
+
+        for i in range(loop_times):
+            celltype_assignment, lr_spatial = _enhance_res_3d(
+                Num_sample=Num_sample,
+                original_grid=original_grid,
+                grid_shape=grid_shape,
+                window_shape=(windows_row_list[i], windows_col_list[i],
+                              windows_depth_list[i]),
+                target_trans=target_trans,
+                Num_celltype=Num_celltype,
+                prior=prior,
+                lrct_assignment=celltype_assignment,
+                swap_num=swap_num_list[i],
+                tol=tol_list[i],
+                smallsample_max_iter=smallsample_max_iter,
+                bigsample_max_iter=bigsample_max_iter)
+        return celltype_assignment, lr_spatial, loop_times
     
    # celltype_assignment = None
     for i in np.arange(loop_times):

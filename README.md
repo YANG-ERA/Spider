@@ -57,6 +57,29 @@ adata = sim.to_anndata()
 
 See the tutorials at <https://spider-analyses.readthedocs.io/en/latest/>.
 
+## 3D Cell Simulation
+
+`simulate_10X_3d` supports more than 10,000 cells using a three-axis coarse-to-fine grid. It returns one cell-type label and one `(x, y, z)` coordinate per cell. The final annealing step uses a 3D nearest-neighbor graph.
+
+```python
+import numpy as np
+import spider
+
+prior = np.array([0.3, 0.25, 0.2, 0.15, 0.1])
+target = spider.make_transition_matrix("mixed", n_celltypes=5)
+
+cell_types, locations = spider.simulate_10X_3d(
+    cell_num=20000,
+    Num_celltype=5,
+    prior=prior,
+    target_trans=target,
+    image_width=1000,
+    image_height=1000,
+    image_depth=1000,
+)
+assert locations.shape == (20000, 3)
+```
+
 ## Estimating Parameters From Real Data
 
 Spider can estimate cell-type proportions and neighborhood transition matrices from annotated spatial data:
