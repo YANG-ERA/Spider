@@ -300,9 +300,9 @@ def get_mesh_counts_3d(locations=None, grid_x=None, grid_y=None, grid_z=None,
     dz = image_depth / grid_z
     
     # Calculate 3D grid indices for each cell
-    points_x_indices = (locations[:,0] / dx).astype(int)
-    points_y_indices = (locations[:,1] / dy).astype(int)
-    points_z_indices = (locations[:,2] / dz).astype(int)
+    points_x_indices = np.clip((locations[:,0] / dx).astype(int), 0, grid_x - 1)
+    points_y_indices = np.clip((locations[:,1] / dy).astype(int), 0, grid_y - 1)
+    points_z_indices = np.clip((locations[:,2] / dz).astype(int), 0, grid_z - 1)
     
     # Calculate unique spot ID for each cell in 3D grid
     cell_spot_id = (points_x_indices * grid_y * grid_z + 
@@ -351,6 +351,8 @@ def simulate_10X_3d(cell_num=None,
         cell_num = ref.shape[0]
         cell_location = ref.obsm["spatial_3d"]  # Assuming 3D coordinates in obsm
         Num_ct_sample = np.bincount(ref.obs.label)
+        if prior is None:
+            prior = Num_ct_sample / Num_ct_sample.sum()
         randcelltype = init_ct(Num_celltype=len(Num_ct_sample),
                              Num_ct_sample=Num_ct_sample)
         Num_celltype = len(Num_ct_sample)
@@ -383,9 +385,9 @@ def simulate_10X_3d(cell_num=None,
                 target_trans=target_trans,
                 original_grid=grid_spatial,
                 grid_row=grid_x,  # Using grid_x for row dimension
-                grid_col=grid_y,  # Using grid_y for col dimension
-                # Need to modify enhance_loop to handle 3D if needed
-                loop_times=None,
+                grid_col=grid_y,
+                grid_depth=grid_z,
+                loop_times=loop_times,
                 windows_row_list=None,
                 windows_col_list=None,
                 swap_num_list=None,
@@ -394,8 +396,7 @@ def simulate_10X_3d(cell_num=None,
                 smallsample_max_iter=smallsample_max_iter,
                 bigsample_max_iter=bigsample_max_iter)
 
-            grid_ct_onehot = get_onehot_ct(init_assign=celltype_assignment.reshape(-1))
-            randcelltype = np.argmax(cell_spot_idx_matrix * grid_ct_onehot, axis=1)
+            randcelltype = celltype_assignment.reshape(-1)[cell_spot_idx_matrix.indices]
             randcelltype = mutate(celltype_assignment=randcelltype,
                                 Num_ct_sample=Num_ct_sample)
     else:
@@ -443,7 +444,8 @@ def simulate_10X_3d(cell_num=None,
                 original_grid=grid_spatial,
                 grid_row=grid_x,
                 grid_col=grid_y,
-                loop_times=None,
+                grid_depth=grid_z,
+                loop_times=loop_times,
                 windows_row_list=None,
                 windows_col_list=None,
                 swap_num_list=None,
@@ -452,8 +454,7 @@ def simulate_10X_3d(cell_num=None,
                 smallsample_max_iter=smallsample_max_iter,
                 bigsample_max_iter=bigsample_max_iter)
 
-            grid_ct_onehot = get_onehot_ct(init_assign=celltype_assignment.reshape(-1))
-            randcelltype = np.argmax(cell_spot_idx_matrix * grid_ct_onehot, axis=1)
+            randcelltype = celltype_assignment.reshape(-1)[cell_spot_idx_matrix.indices]
             
             if Num_ct_sample is None:
                 Num_ct_sample = get_ct_sample(Num_celltype=Num_celltype,
